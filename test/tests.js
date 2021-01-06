@@ -64,7 +64,9 @@ function compareReconstructedKeys(a, b, message) {
 }
 
 async function saveMocks() {
-  let filename = [tkeyVersion,this.test.fullTitle().split(" ")[0]].join("|") +".json"
+  let titleArr = this.test.title.split(" ")
+  let title = titleArr[titleArr.length -1].substring(1, titleArr[titleArr.length -1].length-1)
+  let filename = [tkeyVersion,title].join("|") +".json"
   let dir = "./mocks/"+tkeyVersion
   if (!fs.existsSync(dir)){
     fs.mkdirSync(dir);
@@ -107,31 +109,55 @@ async function setupTests() {
 }
 
 
-// describe.only("tkey-core", function () {
-//   let tb;
-//   beforeEach("setup tkey", async function () {
-//     // reset mocks
-//     mockLocalStore = {}
-//     defaultSL = initStorageLayer(mocked, { serviceProvider: defaultSP, hostUrl: metadataURL });
-//     tb = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//   });
+describe.only("building mocks", function () {
+  let tb;
+  beforeEach("reset mocks", async function () {
+    // reset mocks
+    mockLocalStore = {}
+    defaultSL = initStorageLayer(mocked, { serviceProvider: defaultSP, hostUrl: metadataURL });
+    
+  });
 
-//   afterEach("save metadata", async function () {
-//     await saveMocks.call(this)
-//   });
+  afterEach("save metadata", async function () {
+    await saveMocks.call(this)
+  });
 
-//   it("save standard", async function () {
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize();
-//     tb2.inputShareStore(resp1.deviceShare);
-//     mockLocalStore["deviceShare"] = resp1.deviceShare
-//     const reconstructedKey = await tb2.reconstructKey();
-//     if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed");
-//     }
-//   });
-// });
+  it("tkey-core", async function () {
+    let tb = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
+    const resp1 = await tb.initializeNewKey({ initializeModules: true });
+    const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
+    await tb2.initialize();
+    tb2.inputShareStore(resp1.deviceShare);
+    mockLocalStore["deviceShare"] = resp1.deviceShare
+    const reconstructedKey = await tb2.reconstructKey();
+    if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+      fail("key should be able to be reconstructed");
+    }
+  });
+
+  it("security-questions", async function () {
+    let tb = new ThresholdKey({
+      serviceProvider: defaultSP,
+      storageLayer: defaultSL,
+      modules: { securityQuestions: new SecurityQuestionsModule() },
+    });
+    const resp1 = await tb.initializeNewKey({ initializeModules: true });
+        await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+        const tb2 = new ThresholdKey({
+          serviceProvider: defaultSP,
+          storageLayer: defaultSL,
+          modules: { securityQuestions: new SecurityQuestionsModule() },
+        });
+        await tb2.initialize();
+    
+        await tb2.modules.securityQuestions.inputShareFromSecurityQuestions("blublu");
+        const reconstructedKey = await tb2.reconstructKey();
+        // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
+        if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+          fail("key should be able to be reconstructed");
+        }
+  });
+});
 
 const compatibilityTestMap = {
   "tkey-core" : function(mockPath) {
@@ -244,187 +270,151 @@ const compatibilityTestMap = {
         fail("key should be able to be reconstructed");
       }
     });
-  }}
+
+    it("#should be able to reconstruct key on an SDK with security questions module", async function () {
+      tb = new ThresholdKey({
+        serviceProvider: defaultSP,
+        storageLayer: defaultSL,
+        modules: { securityQuestions: new SecurityQuestionsModule() },
+      });
+      await tb.initialize();
+      tb.inputShareStore(mockLocalStore.deviceShare);
+      const resp1 = await tb.reconstructKey();
+
+      await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+      const tb2 = new ThresholdKey({
+        serviceProvider: defaultSP,
+        storageLayer: defaultSL,
+        modules: { securityQuestions: new SecurityQuestionsModule() },
+      });
+      await tb2.initialize();
+  
+      await tb2.modules.securityQuestions.inputShareFromSecurityQuestions("blublu");
+      const reconstructedKey = await tb2.reconstructKey();
+      if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+        fail("key should be able to be reconstructed");
+      }
+    });
+    it("#should be able to reconstruct key and initialize a key with security questions after refresh", async function () {
+      tb = new ThresholdKey({
+        serviceProvider: defaultSP,
+        storageLayer: defaultSL,
+        modules: { securityQuestions: new SecurityQuestionsModule() },
+      });
+      await tb.initialize();
+      tb.inputShareStore(mockLocalStore.deviceShare);
+      const resp1 = await tb.reconstructKey();
+      await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+      const tb2 = new ThresholdKey({
+        serviceProvider: defaultSP,
+        storageLayer: defaultSL,
+        modules: { securityQuestions: new SecurityQuestionsModule() },
+      });
+      await tb.generateNewShare();
+      await tb2.initialize();
+  
+      await tb2.modules.securityQuestions.inputShareFromSecurityQuestions("blublu");
+      const reconstructedKey = await tb2.reconstructKey();
+
+      if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+        fail("key should be able to be reconstructed");
+      }
+    });
+  }},
+  "security-questions": function(mockPath) {
+    return function () {
+      let tb;
+      beforeEach("initialize security questions module", async function () {
+        await loadMocks(mockPath)
+        tb = new ThresholdKey({
+          serviceProvider: defaultSP,
+          storageLayer: defaultSL,
+          modules: { securityQuestions: new SecurityQuestionsModule() },
+        });
+      });
+      it("#should be able to reconstruct key and initialize a key with security questions", async function () {
+        const resp1 = await tb.initializeNewKey({ initializeModules: true });
+        await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+        const tb2 = new ThresholdKey({
+          serviceProvider: defaultSP,
+          storageLayer: defaultSL,
+          modules: { securityQuestions: new SecurityQuestionsModule() },
+        });
+        await tb2.initialize();
+    
+        await tb2.modules.securityQuestions.inputShareFromSecurityQuestions("blublu");
+        const reconstructedKey = await tb2.reconstructKey();
+        // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
+        if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+          fail("key should be able to be reconstructed");
+        }
+      });
+      it("#should be able to reconstruct key and initialize a key with security questions after refresh", async function () {
+        const resp1 = await tb.initializeNewKey({ initializeModules: true });
+        await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+        const tb2 = new ThresholdKey({
+          serviceProvider: defaultSP,
+          storageLayer: defaultSL,
+          modules: { securityQuestions: new SecurityQuestionsModule() },
+        });
+        await tb.generateNewShare();
+        await tb2.initialize();
+    
+        await tb2.modules.securityQuestions.inputShareFromSecurityQuestions("blublu");
+        const reconstructedKey = await tb2.reconstructKey();
+        // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
+        if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+          fail("key should be able to be reconstructed");
+        }
+      });
+      it("#should be able to change password", async function () {
+        const resp1 = await tb.initializeNewKey({ initializeModules: true });
+        await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+        await tb.modules.securityQuestions.changeSecurityQuestionAndAnswer("dodo", "who is your cat?");
+    
+        const tb2 = new ThresholdKey({
+          serviceProvider: defaultSP,
+          storageLayer: defaultSL,
+          modules: { securityQuestions: new SecurityQuestionsModule() },
+        });
+        await tb2.initialize();
+    
+        await tb2.modules.securityQuestions.inputShareFromSecurityQuestions("dodo");
+        const reconstructedKey = await tb2.reconstructKey();
+        // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
+        if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+          fail("key should be able to be reconstructed");
+        }
+      });
+      it("#should be able to change password and serialize", async function () {
+        const resp1 = await tb.initializeNewKey({ initializeModules: true });
+        await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+        await tb.modules.securityQuestions.changeSecurityQuestionAndAnswer("dodo", "who is your cat?");
+    
+        const tb2 = new ThresholdKey({
+          serviceProvider: defaultSP,
+          storageLayer: defaultSL,
+          modules: { securityQuestions: new SecurityQuestionsModule() },
+        });
+        await tb2.initialize();
+    
+        await tb2.modules.securityQuestions.inputShareFromSecurityQuestions("dodo");
+        const reconstructedKey = await tb2.reconstructKey();
+        // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
+        if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+          fail("key should be able to be reconstructed");
+        }
+    
+        const stringified = JSON.stringify(tb2);
+        const tb4 = await ThresholdKey.fromJSON(JSON.parse(stringified), { serviceProvider: defaultSP, storageLayer: defaultSL });
+        const finalKeyPostSerialization = await tb4.reconstructKey();
+        strictEqual(finalKeyPostSerialization.toString("hex"), reconstructedKey.toString("hex"), "Incorrect serialization");
+      });
+    }
+  }
 }
 
 setupTests()
-
-// describe("tkey-core", function () {
-//   let tb;
-//   beforeEach("setup tkey", async function () {
-//     // reset storage layer
-//     defaultSL = initStorageLayer(mocked, { serviceProvider: defaultSP, hostUrl: metadataURL });
-//     tb = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//   });
-
-//   it("#should be able to reconstruct key when initializing a key", async function () {
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize();
-//     tb2.inputShareStore(resp1.deviceShare);
-//     const reconstructedKey = await tb2.reconstructKey();
-//     if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed");
-//     }
-//   });
-//   it("#should be able to reconstruct key when initializing a  with user input", async function () {
-//     let determinedShare = new BN(keccak256("user answer blublu").slice(2), "hex");
-//     determinedShare = determinedShare.umod(ecCurve.curve.n);
-//     const resp1 = await tb.initializeNewKey({ determinedShare, initializeModules: true });
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize();
-//     tb2.inputShareStore(resp1.userShare);
-//     const reconstructedKey = await tb2.reconstructKey();
-//     // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
-//     if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed");
-//     }
-//   });
-//   it("#should be able to generate and delete shares", async function () {
-//     await tb.initializeNewKey({ initializeModules: true });
-//     const { newShareStores: newShareStores1, newShareIndex: newShareIndex1 } = await tb.generateNewShare();
-//     const { newShareStores } = await tb.deleteShare(newShareIndex1);
-
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize();
-//     // tb2.inputShareStore(resp1.deviceShare);
-//     tb2.inputShareStore(newShareStores1[newShareIndex1.toString("hex")]);
-//     const newKeys = Object.keys(newShareStores);
-//     if (newKeys.find((el) => el === newShareIndex1.toString("hex"))) {
-//       fail("Unable to delete share index");
-//     }
-//   });
-//   it("#should not be able to add share post deletion", async function () {
-//     await tb.initializeNewKey({ initializeModules: true });
-//     const { newShareStores: newShareStores1, newShareIndex: newShareIndex1 } = await tb.generateNewShare();
-//     await tb.deleteShare(newShareIndex1);
-
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize();
-//     rejects(async () => {
-//       await tb2.inputShare(newShareStores1[newShareIndex1.toString("hex")].share.share);
-//     }, Error);
-//   });
-//   it("#should be able to reshare a key and retrieve from service provider", async function () {
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize();
-//     tb2.inputShareStore(resp1.deviceShare);
-//     const reconstructedKey = await tb2.reconstructKey();
-//     if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed");
-//     }
-//     const resp2 = await tb2.generateNewShare();
-//     const tb3 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb3.initialize();
-//     tb3.inputShareStore(resp2.newShareStores[resp2.newShareIndex.toString("hex")]);
-//     const finalKey = await tb3.reconstructKey();
-//     if (resp1.privKey.cmp(finalKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed after adding new share");
-//     }
-//   });
-//   it("#should be able to reconstruct key when initializing a with a share ", async function () {
-//     let userInput = new BN(keccak256("user answer blublu").slice(2), "hex");
-//     userInput = userInput.umod(ecCurve.curve.n);
-//     const resp1 = await tb.initializeNewKey({ userInput, initializeModules: true });
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize({ input: resp1.userShare });
-//     tb2.inputShareStore(resp1.deviceShare);
-//     const reconstructedKey = await tb2.reconstructKey();
-//     // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
-//     if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed");
-//     }
-//   });
-//   it("#should be able to reconstruct key after refresh and intializeing with a share ", async function () {
-//     let userInput = new BN(keccak256("user answer blublu").slice(2), "hex");
-//     userInput = userInput.umod(ecCurve.curve.n);
-//     const resp1 = await tb.initializeNewKey({ userInput, initializeModules: true });
-//     const newShares = await tb.generateNewShare();
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize({ input: resp1.userShare });
-//     tb2.inputShareStore(newShares.newShareStores[resp1.deviceShare.share.shareIndex.toString("hex")]);
-//     const reconstructedKey = await tb2.reconstructKey();
-//     // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
-//     if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed");
-//     }
-//   });
-//   it("#should serialize and deserialize correctly with user input", async function () {
-//     let userInput = new BN(keccak256("user answer blublu").slice(2), "hex");
-//     userInput = userInput.umod(ecCurve.curve.n);
-//     const resp1 = await tb.initializeNewKey({ userInput, initializeModules: true });
-//     const newShares = await tb.generateNewShare();
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize({ input: resp1.userShare });
-//     tb2.inputShareStore(newShares.newShareStores[resp1.deviceShare.share.shareIndex.toString("hex")]);
-//     const reconstructedKey = await tb2.reconstructKey();
-//     // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
-//     if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed");
-//     }
-
-//     const stringified = JSON.stringify(tb2);
-//     const tb3 = await ThresholdKey.fromJSON(JSON.parse(stringified), { serviceProvider: defaultSP, storageLayer: defaultSL });
-//     const finalKey = await tb3.reconstructKey();
-//     strictEqual(finalKey.toString("hex"), reconstructedKey.toString("hex"), "Incorrect serialization");
-//   });
-//   it("#should be able to reshare a key and retrieve from service provider serialization", async function () {
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize();
-//     tb2.inputShareStore(resp1.deviceShare);
-//     const reconstructedKey = await tb2.reconstructKey();
-//     // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
-//     if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed");
-//     }
-//     const resp2 = await tb2.generateNewShare();
-//     const tb3 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb3.initialize();
-//     tb3.inputShareStore(resp2.newShareStores[resp2.newShareIndex.toString("hex")]);
-//     const finalKey = await tb3.reconstructKey();
-//     // compareBNArray(resp1.privKey, finalKey, "key should be able to be reconstructed");
-//     if (resp1.privKey.cmp(finalKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed after adding new share");
-//     }
-
-//     const stringified = JSON.stringify(tb3);
-//     const tb4 = await ThresholdKey.fromJSON(JSON.parse(stringified), { serviceProvider: defaultSP, storageLayer: defaultSL });
-//     const finalKeyPostSerialization = await tb4.reconstructKey();
-//     strictEqual(finalKeyPostSerialization.toString("hex"), finalKey.toString("hex"), "Incorrect serialization");
-//   });
-//   it("#should be able to import and reconstruct an imported key", async function () {
-//     const importedKey = new BN(generatePrivate());
-//     const resp1 = await tb.initializeNewKey({ importedKey, initializeModules: true });
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize();
-//     tb2.inputShareStore(resp1.deviceShare);
-//     const reconstructedKey = await tb2.reconstructKey();
-//     // compareBNArray([importedKey], reconstructedKey, "key should be able to be reconstructed");
-//     if (importedKey.cmp(reconstructedKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed");
-//     }
-//   });
-//   it("#should be able to reconstruct key, even with old metadata", async function () {
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize(); // initialize sdk with old metadata
-//     tb.generateNewShare(); // generate new share to update metadata
-//     tb2.inputShareStore(resp1.deviceShare);
-//     const reconstructedKey = await tb2.reconstructKey(); // reconstruct key with old metadata should work to poly
-//     if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed");
-//     }
-//   });
-//   it("#should be able to not create a new key if initialize is called with neverInitializeNewKey", async function () {
-//     const newSP = new ServiceProviderBase({ postboxKey: new BN(generatePrivate()).toString("hex") });
-//     const tb2 = new ThresholdKey({ serviceProvider: newSP, storageLayer: defaultSL });
-//     rejects(async () => {
-//       await tb2.initialize({ neverInitializeNewKey: true });
-//     }, Error);
-//   });
-// });
 
 // describe("SecurityQuestionsModule", function () {
 //   let tb;
@@ -514,6 +504,8 @@ setupTests()
 //     strictEqual(finalKeyPostSerialization.toString("hex"), reconstructedKey.toString("hex"), "Incorrect serialization");
 //   });
 // });
+
+
 
 // describe("ShareTransferModule", function () {
 //   it("#should be able to transfer share via the module", async function () {
