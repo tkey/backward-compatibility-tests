@@ -109,67 +109,67 @@ async function setupTests() {
 }
 
 
-describe.only("building mocks", function () {
-  let tb;
-  beforeEach("reset mocks", async function () {
-    // reset mocks
-    mockLocalStore = {}
-    defaultSL = initStorageLayer(mocked, { serviceProvider: defaultSP, hostUrl: metadataURL });
+// describe.only("building mocks", function () {
+//   let tb;
+//   beforeEach("reset mocks", async function () {
+//     // reset mocks
+//     mockLocalStore = {}
+//     defaultSL = initStorageLayer(mocked, { serviceProvider: defaultSP, hostUrl: metadataURL });
     
-  });
+//   });
 
-  afterEach("save metadata", async function () {
-    await saveMocks.call(this)
-  });
+//   afterEach("save metadata", async function () {
+//     await saveMocks.call(this)
+//   });
 
-  it("tkey-core", async function () {
-    let tb = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-    const resp1 = await tb.initializeNewKey({ initializeModules: true });
-    const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-    await tb2.initialize();
-    tb2.inputShareStore(resp1.deviceShare);
-    mockLocalStore["deviceShare"] = resp1.deviceShare
-    const reconstructedKey = await tb2.reconstructKey();
-    if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-      fail("key should be able to be reconstructed");
-    }
-  });
+//   it("tkey-core", async function () {
+//     let tb = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
+//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
+//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
+//     await tb2.initialize();
+//     tb2.inputShareStore(resp1.deviceShare);
+//     mockLocalStore["deviceShare"] = resp1.deviceShare
+//     const reconstructedKey = await tb2.reconstructKey();
+//     if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+//       fail("key should be able to be reconstructed");
+//     }
+//   });
 
-  it("security-questions", async function () {
-    let tb = new ThresholdKey({
-      serviceProvider: defaultSP,
-      storageLayer: defaultSL,
-      modules: { securityQuestions: new SecurityQuestionsModule() },
-    });
-    const resp1 = await tb.initializeNewKey({ initializeModules: true });
-        await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
-        const tb2 = new ThresholdKey({
-          serviceProvider: defaultSP,
-          storageLayer: defaultSL,
-          modules: { securityQuestions: new SecurityQuestionsModule() },
-        });
-        await tb2.initialize();
+//   it("security-questions", async function () {
+//     let tb = new ThresholdKey({
+//       serviceProvider: defaultSP,
+//       storageLayer: defaultSL,
+//       modules: { securityQuestions: new SecurityQuestionsModule() },
+//     });
+//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
+//         await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+//         const tb2 = new ThresholdKey({
+//           serviceProvider: defaultSP,
+//           storageLayer: defaultSL,
+//           modules: { securityQuestions: new SecurityQuestionsModule() },
+//         });
+//         await tb2.initialize();
     
-        await tb2.modules.securityQuestions.inputShareFromSecurityQuestions("blublu");
-        const reconstructedKey = await tb2.reconstructKey();
-        // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
-        if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-          fail("key should be able to be reconstructed");
-        }
-  });
+//         await tb2.modules.securityQuestions.inputShareFromSecurityQuestions("blublu");
+//         const reconstructedKey = await tb2.reconstructKey();
+//         // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
+//         if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+//           fail("key should be able to be reconstructed");
+//         }
+//   });
 
-  it("seedphrase", async function () {
-    const metamaskSeedPhraseFormat = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
-    const tb = new ThresholdKey({
-      serviceProvider: defaultSP,
-      storageLayer: defaultSL,
-      modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]) },
-    });
-    const resp1 = await tb.initializeNewKey({ initializeModules: true });
-    await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
-    mockLocalStore["deviceShare"] = resp1.deviceShare
-  });
-});
+//   it("seedphrase", async function () {
+//     const metamaskSeedPhraseFormat = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
+//     const tb = new ThresholdKey({
+//       serviceProvider: defaultSP,
+//       storageLayer: defaultSL,
+//       modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]) },
+//     });
+//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
+//     await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
+//     mockLocalStore["deviceShare"] = resp1.deviceShare
+//   });
+// });
 
 const compatibilityTestMap = {
   "tkey-core" : function(mockPath) {
@@ -458,6 +458,7 @@ const compatibilityTestMap = {
         });
         await tb.initialize();
         tb.inputShareStore(mockLocalStore.deviceShare);
+        await tb.reconstructKey()
         const actualPrivateKeys = [new BN("70dc3117300011918e26b02176945cc15c3d548cf49fd8418d97f93af699e46", "hex")];
         const derivedKeys = await tb.modules.seedPhrase.getAccounts();
         compareBNArray(actualPrivateKeys, derivedKeys, "key should be same");
