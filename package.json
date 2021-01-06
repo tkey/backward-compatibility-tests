@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "MOCKED=true mocha"
+    "build-mocks": "BUILD_MOCKS=true mocha",
+    "test": "mocha"
   },
   "repository": {
     "type": "git",

@@ -30,6 +30,7 @@ const mocked = "true";
 const metadataURL = process.env.METADATA || "http://localhost:5051";
 const PRIVATE_KEY = "e70fb5f5970b363879bc36f54d4fc0ad77863bfd059881159251f50f48863acf";
 const PRIVATE_KEY_2 = "2e6824ef22a58b7b5c8938c38e9debd03611f074244f213943e3fa3047ef2385";
+const buildMocks = process.env.BUILD_MOCKS
 
 const defaultSP = new ServiceProviderBase({ postboxKey: PRIVATE_KEY });
 let defaultSL = initStorageLayer(mocked, { serviceProvider: defaultSP, hostUrl: metadataURL });
@@ -109,67 +110,85 @@ async function setupTests() {
 }
 
 
-// describe.only("building mocks", function () {
-//   let tb;
-//   beforeEach("reset mocks", async function () {
-//     // reset mocks
-//     mockLocalStore = {}
-//     defaultSL = initStorageLayer(mocked, { serviceProvider: defaultSP, hostUrl: metadataURL });
-    
-//   });
+if (buildMocks) {
+  describe.only("building mocks", function () {
+    let tb;
+    beforeEach("reset mocks", async function () {
+      // reset mocks
+      mockLocalStore = {}
+      defaultSL = initStorageLayer(mocked, { serviceProvider: defaultSP, hostUrl: metadataURL });
+      
+    });
+  
+    afterEach("save metadata", async function () {
+      await saveMocks.call(this)
+    });
+  
+    it("tkey-core", async function () {
+      let tb = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
+      const resp1 = await tb.initializeNewKey({ initializeModules: true });
+      const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
+      await tb2.initialize();
+      tb2.inputShareStore(resp1.deviceShare);
+      mockLocalStore["deviceShare"] = resp1.deviceShare
+      const reconstructedKey = await tb2.reconstructKey();
+      if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+        fail("key should be able to be reconstructed");
+      }
+    });
+  
+    it("security-questions", async function () {
+      let tb = new ThresholdKey({
+        serviceProvider: defaultSP,
+        storageLayer: defaultSL,
+        modules: { securityQuestions: new SecurityQuestionsModule() },
+      });
+      const resp1 = await tb.initializeNewKey({ initializeModules: true });
+          await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+          const tb2 = new ThresholdKey({
+            serviceProvider: defaultSP,
+            storageLayer: defaultSL,
+            modules: { securityQuestions: new SecurityQuestionsModule() },
+          });
+          await tb2.initialize();
+      
+          await tb2.modules.securityQuestions.inputShareFromSecurityQuestions("blublu");
+          const reconstructedKey = await tb2.reconstructKey();
+          // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
+          if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+            fail("key should be able to be reconstructed");
+          }
+    });
+  
+    it("seedphrase", async function () {
+      const metamaskSeedPhraseFormat = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
+      const tb = new ThresholdKey({
+        serviceProvider: defaultSP,
+        storageLayer: defaultSL,
+        modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]) },
+      });
+      const resp1 = await tb.initializeNewKey({ initializeModules: true });
+      await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
+      mockLocalStore["deviceShare"] = resp1.deviceShare
+    });
+  
+    it("tkey-core-seedphrase-security-questions-mix-v3.4.0", async function () {
+      const metamaskSeedPhraseFormat = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
+      const tb = new ThresholdKey({
+        serviceProvider: defaultSP,
+        storageLayer: defaultSL,
+        modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]), securityQuestions: new SecurityQuestionsModule() },
+      });
+      const resp1 = await tb.initializeNewKey({ initializeModules: true });
+      await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
+      await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+      const { newShareStores: newShareStores1, newShareIndex: newShareIndex1 } = await tb.generateNewShare()
+      const { newShareStores } = await tb.deleteShare(resp1.deviceShare.share.shareIndex);
+      mockLocalStore["deviceShare"] = newShareStores1[newShareIndex1.toString("hex")]
+    });
+  });
+}
 
-//   afterEach("save metadata", async function () {
-//     await saveMocks.call(this)
-//   });
-
-//   it("tkey-core", async function () {
-//     let tb = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
-//     const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-//     await tb2.initialize();
-//     tb2.inputShareStore(resp1.deviceShare);
-//     mockLocalStore["deviceShare"] = resp1.deviceShare
-//     const reconstructedKey = await tb2.reconstructKey();
-//     if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-//       fail("key should be able to be reconstructed");
-//     }
-//   });
-
-//   it("security-questions", async function () {
-//     let tb = new ThresholdKey({
-//       serviceProvider: defaultSP,
-//       storageLayer: defaultSL,
-//       modules: { securityQuestions: new SecurityQuestionsModule() },
-//     });
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
-//         await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
-//         const tb2 = new ThresholdKey({
-//           serviceProvider: defaultSP,
-//           storageLayer: defaultSL,
-//           modules: { securityQuestions: new SecurityQuestionsModule() },
-//         });
-//         await tb2.initialize();
-    
-//         await tb2.modules.securityQuestions.inputShareFromSecurityQuestions("blublu");
-//         const reconstructedKey = await tb2.reconstructKey();
-//         // compareBNArray(resp1.privKey, reconstructedKey, "key should be able to be reconstructed");
-//         if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
-//           fail("key should be able to be reconstructed");
-//         }
-//   });
-
-//   it("seedphrase", async function () {
-//     const metamaskSeedPhraseFormat = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
-//     const tb = new ThresholdKey({
-//       serviceProvider: defaultSP,
-//       storageLayer: defaultSL,
-//       modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]) },
-//     });
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
-//     await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
-//     mockLocalStore["deviceShare"] = resp1.deviceShare
-//   });
-// });
 
 const compatibilityTestMap = {
   "tkey-core" : function(mockPath) {
@@ -463,85 +482,67 @@ const compatibilityTestMap = {
         const derivedKeys = await tb.modules.seedPhrase.getAccounts();
         compareBNArray(actualPrivateKeys, derivedKeys, "key should be same");
       });
-    
-      // it("#should be able to get/set private keys", async function () {
-      //   const privateKeyFormat = new SECP256k1Format();
-      //   const tb = new ThresholdKey({
-      //     serviceProvider: defaultSP,
-      //     storageLayer: defaultSL,
-      //     modules: { privateKeyModule: new PrivateKeyModule([privateKeyFormat]) },
-      //   });
-      //   await tb.initializeNewKey({ initializeModules: true });
-    
-      //   const actualPrivateKeys = [
-      //     new BN("4bd0041b7654a9b16a7268a5de7982f2422b15635c4fd170c140dc4897624390", "hex"),
-      //     new BN("1ea6edde61c750ec02896e9ac7fe9ac0b48a3630594fdf52ad5305470a2635c0", "hex"),
-      //     new BN("7749e59f398c5ccc01f3131e00abd1d061a03ae2ae59c49bebcee61d419f7cf0", "hex"),
-      //     new BN("1a99651a0aab297997bb3374451a2c40c927fab93903c1957fa9444bc4e2c770", "hex"),
-      //     new BN("220dad2d2bbb8bc2f731981921a49ee6059ef9d1e5d55ee203527a3157fb7284", "hex"),
-      //   ];
-      //   await tb.modules.privateKeyModule.setPrivateKeys(actualPrivateKeys, "secp256k1n");
-      //   const getAccounts = await tb.modules.privateKeyModule.getAccounts();
-      //   deepStrictEqual(
-      //     actualPrivateKeys.map((x) => x.toString("hex")),
-      //     getAccounts.map((x) => x.toString("hex"))
-      //   );
-      // });
-    
-      // it("#should be able to get/set private keys and seed phrase", async function () {
-      //   const privateKeyFormat = new SECP256k1Format();
-      //   const metamaskSeedPhraseFormat = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
-      //   const tb = new ThresholdKey({
-      //     serviceProvider: defaultSP,
-      //     storageLayer: defaultSL,
-      //     modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]), privateKeyModule: new PrivateKeyModule([privateKeyFormat]) },
-      //   });
-      //   const resp1 = await tb.initializeNewKey({ initializeModules: true });
-    
-      //   await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
-    
-      //   const actualPrivateKeys = [
-      //     new BN("4bd0041b7654a9b16a7268a5de7982f2422b15635c4fd170c140dc4897624390", "hex"),
-      //     new BN("1ea6edde61c750ec02896e9ac7fe9ac0b48a3630594fdf52ad5305470a2635c0", "hex"),
-      //     new BN("7749e59f398c5ccc01f3131e00abd1d061a03ae2ae59c49bebcee61d419f7cf0", "hex"),
-      //     new BN("1a99651a0aab297997bb3374451a2c40c927fab93903c1957fa9444bc4e2c770", "hex"),
-      //     new BN("220dad2d2bbb8bc2f731981921a49ee6059ef9d1e5d55ee203527a3157fb7284", "hex"),
-      //   ];
-      //   await tb.modules.privateKeyModule.setPrivateKeys(actualPrivateKeys, "secp256k1n");
-    
-      //   const metamaskSeedPhraseFormat2 = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
-      //   const tb2 = new ThresholdKey({
-      //     serviceProvider: defaultSP,
-      //     storageLayer: defaultSL,
-      //     modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat2]), privateKeyModule: new PrivateKeyModule([privateKeyFormat]) },
-      //   });
-      //   await tb2.initialize();
-      //   tb2.inputShareStore(resp1.deviceShare);
-      //   const reconstuctedKey = await tb2.reconstructKey();
-      //   // console.log(reconstuctedKey);
-      //   compareReconstructedKeys(reconstuctedKey, {
-      //     privKey: resp1.privKey,
-      //     seedPhraseModule: [new BN("70dc3117300011918e26b02176945cc15c3d548cf49fd8418d97f93af699e46", "hex")],
-      //     privateKeyModule: [
-      //       new BN("4bd0041b7654a9b16a7268a5de7982f2422b15635c4fd170c140dc4897624390", "hex"),
-      //       new BN("1ea6edde61c750ec02896e9ac7fe9ac0b48a3630594fdf52ad5305470a2635c0", "hex"),
-      //       new BN("7749e59f398c5ccc01f3131e00abd1d061a03ae2ae59c49bebcee61d419f7cf0", "hex"),
-      //       new BN("1a99651a0aab297997bb3374451a2c40c927fab93903c1957fa9444bc4e2c770", "hex"),
-      //       new BN("220dad2d2bbb8bc2f731981921a49ee6059ef9d1e5d55ee203527a3157fb7284", "hex"),
-      //     ],
-      //     allKeys: [
-      //       resp1.privKey,
-      //       new BN("70dc3117300011918e26b02176945cc15c3d548cf49fd8418d97f93af699e46", "hex"),
-      //       new BN("4bd0041b7654a9b16a7268a5de7982f2422b15635c4fd170c140dc4897624390", "hex"),
-      //       new BN("1ea6edde61c750ec02896e9ac7fe9ac0b48a3630594fdf52ad5305470a2635c0", "hex"),
-      //       new BN("7749e59f398c5ccc01f3131e00abd1d061a03ae2ae59c49bebcee61d419f7cf0", "hex"),
-      //       new BN("1a99651a0aab297997bb3374451a2c40c927fab93903c1957fa9444bc4e2c770", "hex"),
-      //       new BN("220dad2d2bbb8bc2f731981921a49ee6059ef9d1e5d55ee203527a3157fb7284", "hex"),
-      //     ],
-      //   });
-      // });
     }
   }
+  // "mix-v3.4.0": function(mockPath) {
+  //   return function () {
+  //     beforeEach("load mocks", async function () {
+  //       await loadMocks(mockPath)
+  //     });
+  //     // it("#should be able to get/set private keys and seed phrase", async function () {
+  //     //   const privateKeyFormat = new SECP256k1Format();
+  //     //   const metamaskSeedPhraseFormat = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
+  //     //   const tb = new ThresholdKey({
+  //     //     serviceProvider: defaultSP,
+  //     //     storageLayer: defaultSL,
+  //     //     modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]), privateKeyModule: new PrivateKeyModule([privateKeyFormat]) },
+  //     //   });
+  //     //   const resp1 = await tb.initializeNewKey({ initializeModules: true });
+    
+  //     //   await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
+    
+  //     //   const actualPrivateKeys = [
+  //     //     new BN("4bd0041b7654a9b16a7268a5de7982f2422b15635c4fd170c140dc4897624390", "hex"),
+  //     //     new BN("1ea6edde61c750ec02896e9ac7fe9ac0b48a3630594fdf52ad5305470a2635c0", "hex"),
+  //     //     new BN("7749e59f398c5ccc01f3131e00abd1d061a03ae2ae59c49bebcee61d419f7cf0", "hex"),
+  //     //     new BN("1a99651a0aab297997bb3374451a2c40c927fab93903c1957fa9444bc4e2c770", "hex"),
+  //     //     new BN("220dad2d2bbb8bc2f731981921a49ee6059ef9d1e5d55ee203527a3157fb7284", "hex"),
+  //     //   ];
+  //     //   await tb.modules.privateKeyModule.setPrivateKeys(actualPrivateKeys, "secp256k1n");
+    
+  //     //   const metamaskSeedPhraseFormat2 = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
+  //     //   const tb2 = new ThresholdKey({
+  //     //     serviceProvider: defaultSP,
+  //     //     storageLayer: defaultSL,
+  //     //     modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat2]), privateKeyModule: new PrivateKeyModule([privateKeyFormat]) },
+  //     //   });
+  //     //   await tb2.initialize();
+  //     //   tb2.inputShareStore(resp1.deviceShare);
+  //     //   const reconstuctedKey = await tb2.reconstructKey();
+  //     //   // console.log(reconstuctedKey);
+  //     //   compareReconstructedKeys(reconstuctedKey, {
+  //     //     privKey: resp1.privKey,
+  //     //     seedPhraseModule: [new BN("70dc3117300011918e26b02176945cc15c3d548cf49fd8418d97f93af699e46", "hex")],
+  //     //     privateKeyModule: [
+  //     //       new BN("4bd0041b7654a9b16a7268a5de7982f2422b15635c4fd170c140dc4897624390", "hex"),
+  //     //       new BN("1ea6edde61c750ec02896e9ac7fe9ac0b48a3630594fdf52ad5305470a2635c0", "hex"),
+  //     //       new BN("7749e59f398c5ccc01f3131e00abd1d061a03ae2ae59c49bebcee61d419f7cf0", "hex"),
+  //     //       new BN("1a99651a0aab297997bb3374451a2c40c927fab93903c1957fa9444bc4e2c770", "hex"),
+  //     //       new BN("220dad2d2bbb8bc2f731981921a49ee6059ef9d1e5d55ee203527a3157fb7284", "hex"),
+  //     //     ],
+  //     //     allKeys: [
+  //     //       resp1.privKey,
+  //     //       new BN("70dc3117300011918e26b02176945cc15c3d548cf49fd8418d97f93af699e46", "hex"),
+  //     //       new BN("4bd0041b7654a9b16a7268a5de7982f2422b15635c4fd170c140dc4897624390", "hex"),
+  //     //       new BN("1ea6edde61c750ec02896e9ac7fe9ac0b48a3630594fdf52ad5305470a2635c0", "hex"),
+  //     //       new BN("7749e59f398c5ccc01f3131e00abd1d061a03ae2ae59c49bebcee61d419f7cf0", "hex"),
+  //     //       new BN("1a99651a0aab297997bb3374451a2c40c927fab93903c1957fa9444bc4e2c770", "hex"),
+  //     //       new BN("220dad2d2bbb8bc2f731981921a49ee6059ef9d1e5d55ee203527a3157fb7284", "hex"),
+  //     //     ],
+  //     //   });
+  //     // });
+  //   }
+  // }
 }
 
 setupTests()
