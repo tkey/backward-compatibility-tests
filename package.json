@@ -17,7 +17,8 @@
   },
   "homepage": "https://github.com/tkey/backward-compatibility-tests#readme",
   "dependencies": {
-    "@tkey/common-types": "^3.4.0",
+    "@jsbits/get-package-version": "^1.0.3",
+    "@tkey/common-types": "^3.6.1",
     "@tkey/core": "^3.4.0",
     "@tkey/default": "^3.4.0",
     "@tkey/private-keys": "^3.4.0",
