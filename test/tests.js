@@ -17,8 +17,28 @@ import * as fs from 'fs';
 import ThresholdKey from "@tkey/default";
 
 import getPackageVersion from '@jsbits/get-package-version'
+
+
+/*
+The aim for this repo is to test if there are any backward incompatibilities in tKey. We achieve this through:
+1) Building mocks of metadata:
+We output mocks into ./mocks, typically run on new release versions of tKey.
+These mocks are designed to represent storage done by tKey, e.g. local storage, metadata, device storage etc...
+To add new mocks simply just create a new test suite in the BUILD MOCKS section, it'll be named as its title (i.e. tkey-core => 3.4.0|tkey-core.json )
+Naming is important here as we run compatibility tests regexed against the names of the mocks.
+
+2) Running new versions of tKey against these mocks
+COMPATIBILITY TESTS section runs the previous created mocks against defined standard scenarios.
+We run a wildcard regex on which mocks to run agaisnt, if the test suite is named "tkey-core", we run the tests against all mocks with "tkey-core".
+Ideally we build these tests around functionality which we expect from loading storage. For example, loading in an old password from metadata and making changes
+
+In the event of tests tests failing shows incompatibility in versions.
+*/
  
-const tkeyVersion = getPackageVersion("./node_modules/@tkey/core") // ⇒ '1.0.0' (just as example)
+
+// SETUP FUNCTIONS
+
+const tkeyVersion = getPackageVersion("./node_modules/@tkey/core")
 if(!tkeyVersion) throw new Error("need tkeyVersion to save")
 
 
@@ -109,6 +129,7 @@ async function setupTests() {
   }
 }
 
+/* BUILD MOCKS */
 
 if (buildMocks) {
   describe.only("building mocks", function () {
@@ -189,6 +210,8 @@ if (buildMocks) {
   });
 }
 
+
+/* COMPATIBILITY TESTS */
 
 const compatibilityTestMap = {
   "tkey-core" : function(mockPath) {
