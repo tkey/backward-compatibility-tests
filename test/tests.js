@@ -53,6 +53,9 @@ const PRIVATE_KEY = "e70fb5f5970b363879bc36f54d4fc0ad77863bfd059881159251f50f488
 const PRIVATE_KEY_2 = "2e6824ef22a58b7b5c8938c38e9debd03611f074244f213943e3fa3047ef2385";
 const buildMocks = process.env.BUILD_MOCKS
 
+let testAgainstVersions = fs.readFileSync("./versionsToTest.txt").toString().split(",")
+console.log(testAgainstVersions)
+
 const defaultSP = new ServiceProviderBase({ postboxKey: PRIVATE_KEY });
 let defaultSL = initStorageLayer(mocked, { serviceProvider: defaultSP, hostUrl: metadataURL });
 let mockLocalStore = {}
@@ -114,7 +117,7 @@ async function loadMocks(filepath) {
 }
 
 
-const testAgainstVersions = ["3.9.0", "3.10.0"]
+
 async function setupTests() {
   for (let i = 0; i < testAgainstVersions.length; i ++) {
     const dir = './mocks/'+testAgainstVersions[i]
