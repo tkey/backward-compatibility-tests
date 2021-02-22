@@ -20,6 +20,7 @@ import getPackageVersion from '@jsbits/get-package-version'
 
 
 /*
+README PLEASE
 The aim for this repo is to test if there are any backward incompatibilities in tKey. We achieve this through:
 1) Building mocks of metadata:
 We output mocks into ./mocks, typically run on new release versions of tKey.
@@ -113,7 +114,7 @@ async function loadMocks(filepath) {
 }
 
 
-const testAgainstVersions = ["3.4.0"]
+const testAgainstVersions = ["3.9.0", "3.10.0"]
 async function setupTests() {
   for (let i = 0; i < testAgainstVersions.length; i ++) {
     const dir = './mocks/'+testAgainstVersions[i]
@@ -189,24 +190,47 @@ if (buildMocks) {
         modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]) },
       });
       const resp1 = await tb.initializeNewKey({ initializeModules: true });
-      await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
+      await tb.modules.seedPhrase.setSeedPhrase("HD Key Tree", "seed sock milk update focus rotate barely fade car face mechanic mercy",);
       mockLocalStore["deviceShare"] = resp1.deviceShare
     });
-  
-    it("tkey-core-seedphrase-security-questions-mix-v3.4.0", async function () {
-      const metamaskSeedPhraseFormat = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
+
+    it("share-serialization-mnemonic", async function () {
       const tb = new ThresholdKey({
         serviceProvider: defaultSP,
         storageLayer: defaultSL,
-        modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]), securityQuestions: new SecurityQuestionsModule() },
       });
       const resp1 = await tb.initializeNewKey({ initializeModules: true });
-      await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
-      await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
-      const { newShareStores: newShareStores1, newShareIndex: newShareIndex1 } = await tb.generateNewShare()
-      const { newShareStores } = await tb.deleteShare(resp1.deviceShare.share.shareIndex);
-      mockLocalStore["deviceShare"] = newShareStores1[newShareIndex1.toString("hex")]
+      const exportedSeedShare = await tb.outputShare(resp1.deviceShare.share.shareIndex, "mnemonic");
+      mockLocalStore["serializedShare"] = exportedSeedShare
+      const tb2 = new ThresholdKey({
+        serviceProvider: defaultSP,
+        storageLayer: defaultSL,
+      });
+      await tb2.initialize();
+      await tb2.inputShare(exportedSeedShare.toString("hex"), "mnemonic");
+      const reconstructedKey = await tb2.reconstructKey();
+  
+      if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
+        fail("key should be able to be reconstructed");
+      }
     });
+
+
+  
+    // it("tkey-core-seedphrase-security-questions-mix-v3.4.0", async function () {
+    //   const metamaskSeedPhraseFormat = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
+    //   const tb = new ThresholdKey({
+    //     serviceProvider: defaultSP,
+    //     storageLayer: defaultSL,
+    //     modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]), securityQuestions: new SecurityQuestionsModule() },
+    //   });
+    //   const resp1 = await tb.initializeNewKey({ initializeModules: true });
+    //   await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
+    //   await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+    //   const { newShareStores: newShareStores1, newShareIndex: newShareIndex1 } = await tb.generateNewShare()
+    //   const { newShareStores } = await tb.deleteShare(resp1.deviceShare.share.shareIndex);
+    //   mockLocalStore["deviceShare"] = newShareStores1[newShareIndex1.toString("hex")]
+    // });
   });
 }
 
@@ -384,7 +408,7 @@ const compatibilityTestMap = {
       await tb.initialize();
       tb.inputShareStore(mockLocalStore.deviceShare);
       const resp1 = await tb.reconstructKey();
-      await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
+      await tb.modules.seedPhrase.setSeedPhrase("HD Key Tree", "seed sock milk update focus rotate barely fade car face mechanic mercy");
   
       const metamaskSeedPhraseFormat2 = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
       const tb2 = new ThresholdKey({
@@ -504,6 +528,26 @@ const compatibilityTestMap = {
         const actualPrivateKeys = [new BN("70dc3117300011918e26b02176945cc15c3d548cf49fd8418d97f93af699e46", "hex")];
         const derivedKeys = await tb.modules.seedPhrase.getAccounts();
         compareBNArray(actualPrivateKeys, derivedKeys, "key should be same");
+      });
+    }
+  },
+  "share-serialization-mnemonic": function(mockPath) {
+    return function () {
+      beforeEach("load mocks", async function () {
+        await loadMocks(mockPath)
+      });
+      it("#should be able to accept mnemonic", async function () {
+        const tb = new ThresholdKey({
+          serviceProvider: defaultSP,
+          storageLayer: defaultSL,
+        });
+        await tb.initialize();
+        await tb.inputShare(mockLocalStore.serializedShare, "mnemonic");
+        try {
+          const reconstructedKey = await tb.reconstructKey();
+        } catch (err) {
+          fail("key should be able to be reconstructed");
+        }
       });
     }
   }
