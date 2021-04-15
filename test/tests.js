@@ -7,11 +7,8 @@ import ShareTransferModule from "@tkey/share-transfer";
 import TorusStorageLayer, { MockStorageLayer } from "@tkey/storage-layer-torus";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { deepStrictEqual, fail, rejects, strictEqual } from "assert";
-import atob from "atob";
+
 import BN from "bn.js";
-import btoa from "btoa";
-import fetch from "node-fetch";
-import { keccak256 } from "web3-utils";
 import * as fs from 'fs';
 
 import ThresholdKey from "@tkey/default";
@@ -59,10 +56,6 @@ console.log(testAgainstVersions)
 const defaultSP = new ServiceProviderBase({ postboxKey: PRIVATE_KEY });
 let defaultSL = initStorageLayer(mocked, { serviceProvider: defaultSP, hostUrl: metadataURL });
 let mockLocalStore = {}
-
-global.fetch = fetch;
-global.atob = atob;
-global.btoa = btoa;
 
 function compareBNArray(a, b, message) {
   if (a.length !== b.length) fail(message);
