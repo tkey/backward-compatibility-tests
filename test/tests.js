@@ -144,7 +144,9 @@ if (buildMocks) {
   
     it("tkey-core", async function () {
       let tb = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
-      const resp1 = await tb.initializeNewKey({ initializeModules: true });
+      const resp1 = await tb._initializeNewKey({ initializeModules: true });
+      await tb.syncLocalMetadataTransitions();
+
       const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
       await tb2.initialize();
       tb2.inputShareStore(resp1.deviceShare);
@@ -161,7 +163,9 @@ if (buildMocks) {
         storageLayer: defaultSL,
         modules: { securityQuestions: new SecurityQuestionsModule() },
       });
-      const resp1 = await tb.initializeNewKey({ initializeModules: true });
+      const resp1 = await tb._initializeNewKey({ initializeModules: true });
+      await tb.syncLocalMetadataTransitions();
+
           await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
           const tb2 = new ThresholdKey({
             serviceProvider: defaultSP,
@@ -185,8 +189,10 @@ if (buildMocks) {
         storageLayer: defaultSL,
         modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]) },
       });
-      const resp1 = await tb.initializeNewKey({ initializeModules: true });
+      const resp1 = await tb._initializeNewKey({ initializeModules: true });
       await tb.modules.seedPhrase.setSeedPhrase("HD Key Tree", "seed sock milk update focus rotate barely fade car face mechanic mercy",);
+      await tb.syncLocalMetadataTransitions();
+
       mockLocalStore["deviceShare"] = resp1.deviceShare
     });
 
@@ -195,7 +201,9 @@ if (buildMocks) {
         serviceProvider: defaultSP,
         storageLayer: defaultSL,
       });
-      const resp1 = await tb.initializeNewKey({ initializeModules: true });
+      const resp1 = await tb._initializeNewKey({ initializeModules: true });
+      await tb.syncLocalMetadataTransitions();
+
       const exportedSeedShare = await tb.outputShare(resp1.deviceShare.share.shareIndex, "mnemonic");
       mockLocalStore["serializedShare"] = exportedSeedShare
       const tb2 = new ThresholdKey({
@@ -220,7 +228,7 @@ if (buildMocks) {
     //     storageLayer: defaultSL,
     //     modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]), securityQuestions: new SecurityQuestionsModule() },
     //   });
-    //   const resp1 = await tb.initializeNewKey({ initializeModules: true });
+    //   const resp1 = await tb._initializeNewKey({ initializeModules: true });
     //   await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
     //   await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
     //   const { newShareStores: newShareStores1, newShareIndex: newShareIndex1 } = await tb.generateNewShare()
@@ -254,10 +262,12 @@ const compatibilityTestMap = {
     });
     it("#should be able to generate and delete shares", async function () {
       await tb.initialize();
+
       tb.inputShareStore(mockLocalStore.deviceShare);
       const reconstructedKey = await tb.reconstructKey();
       const { newShareStores: newShareStores1, newShareIndex: newShareIndex1 } = await tb.generateNewShare();
-  
+      await tb.syncLocalMetadataTransitions();
+
       const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
       await tb2.initialize();
       tb2.inputShareStore(newShareStores1[newShareIndex1.toString("hex")]);
@@ -268,6 +278,8 @@ const compatibilityTestMap = {
       }
 
       const { newShareStores } = await tb2.deleteShare(newShareIndex1);
+      await tb2.syncLocalMetadataTransitions();
+
       const newKeys = Object.keys(newShareStores);
       if (newKeys.find((el) => el === newShareIndex1.toString("hex"))) {
         fail("Unable to delete share index");
@@ -278,7 +290,9 @@ const compatibilityTestMap = {
       tb.inputShareStore(mockLocalStore.deviceShare);
       await tb.reconstructKey();
       const { newShareStores: newShareStores1, newShareIndex: newShareIndex1 } = await tb.generateNewShare();
+      
       await tb.deleteShare(newShareIndex1);
+      await tb.syncLocalMetadataTransitions();
   
       const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
       await tb2.initialize();
@@ -298,6 +312,8 @@ const compatibilityTestMap = {
         fail("key should be able to be reconstructed");
       }
       const resp2 = await tb2.generateNewShare();
+      await tb2.syncLocalMetadataTransitions();
+
       const tb3 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
       await tb3.initialize();
       tb3.inputShareStore(resp2.newShareStores[resp2.newShareIndex.toString("hex")]);
@@ -318,6 +334,8 @@ const compatibilityTestMap = {
         fail("key should be able to be reconstructed");
       }
       const resp2 = await tb2.generateNewShare();
+      await tb2.syncLocalMetadataTransitions();
+
       const tb3 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
       await tb3.initialize();
       tb3.inputShareStore(resp2.newShareStores[resp2.newShareIndex.toString("hex")]);
@@ -338,6 +356,8 @@ const compatibilityTestMap = {
       const tb2 = new ThresholdKey({ serviceProvider: defaultSP, storageLayer: defaultSL });
       await tb2.initialize(); // initialize sdk with old metadata
       tb.generateNewShare(); // generate new share to update metadata
+      await tb.syncLocalMetadataTransitions();
+
       tb2.inputShareStore(mockLocalStore.deviceShare);
       const reconstructedKey = await tb2.reconstructKey(); // reconstruct key with old metadata should work to poly
       if (resp1.privKey.cmp(reconstructedKey.privKey) !== 0) {
@@ -356,6 +376,8 @@ const compatibilityTestMap = {
       const resp1 = await tb.reconstructKey();
 
       await tb.modules.securityQuestions.generateNewShareWithSecurityQuestions("blublu", "who is your cat?");
+      await tb.syncLocalMetadataTransitions();
+
       const tb2 = new ThresholdKey({
         serviceProvider: defaultSP,
         storageLayer: defaultSL,
@@ -384,6 +406,8 @@ const compatibilityTestMap = {
         storageLayer: defaultSL,
         modules: { securityQuestions: new SecurityQuestionsModule() },
       });
+      await tb.syncLocalMetadataTransitions();
+
       await tb.generateNewShare();
       await tb2.initialize();
   
@@ -405,7 +429,8 @@ const compatibilityTestMap = {
       tb.inputShareStore(mockLocalStore.deviceShare);
       const resp1 = await tb.reconstructKey();
       await tb.modules.seedPhrase.setSeedPhrase("HD Key Tree", "seed sock milk update focus rotate barely fade car face mechanic mercy");
-  
+      await tb.syncLocalMetadataTransitions();
+
       const metamaskSeedPhraseFormat2 = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
       const tb2 = new ThresholdKey({
         serviceProvider: defaultSP,
@@ -449,7 +474,8 @@ const compatibilityTestMap = {
         await tb.modules.securityQuestions.inputShareFromSecurityQuestions("blublu");
         const resp1 = await tb.reconstructKey()
         await tb.modules.securityQuestions.changeSecurityQuestionAndAnswer("dodo", "who is your cat?");
-    
+        await tb.syncLocalMetadataTransitions();
+
         const tb2 = new ThresholdKey({
           serviceProvider: defaultSP,
           storageLayer: defaultSL,
@@ -468,7 +494,8 @@ const compatibilityTestMap = {
         await tb.modules.securityQuestions.inputShareFromSecurityQuestions("blublu");
         const resp1 = await tb.reconstructKey()
         await tb.modules.securityQuestions.changeSecurityQuestionAndAnswer("dodo", "who is your cat?");
-    
+        await tb.syncLocalMetadataTransitions();
+
         const tb2 = new ThresholdKey({
           serviceProvider: defaultSP,
           storageLayer: defaultSL,
@@ -560,7 +587,7 @@ const compatibilityTestMap = {
   //     //     storageLayer: defaultSL,
   //     //     modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]), privateKeyModule: new PrivateKeyModule([privateKeyFormat]) },
   //     //   });
-  //     //   const resp1 = await tb.initializeNewKey({ initializeModules: true });
+  //     //   const resp1 = await tb._initializeNewKey({ initializeModules: true });
     
   //     //   await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
     
@@ -618,7 +645,7 @@ setupTests()
 //       storageLayer: defaultSL,
 //       modules: { shareTransfer: new ShareTransferModule() },
 //     });
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
+//     const resp1 = await tb._initializeNewKey({ initializeModules: true });
 //     const tb2 = new ThresholdKey({
 //       serviceProvider: defaultSP,
 //       storageLayer: defaultSL,
@@ -653,7 +680,7 @@ setupTests()
 //       storageLayer: defaultSL,
 //       modules: { shareTransfer: new ShareTransferModule() },
 //     });
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
+//     const resp1 = await tb._initializeNewKey({ initializeModules: true });
 
 //     const tb2 = new ThresholdKey({
 //       serviceProvider: defaultSP,
@@ -687,7 +714,7 @@ setupTests()
 //       storageLayer: defaultSL,
 //       modules: { shareTransfer: new ShareTransferModule() },
 //     });
-//     await tb.initializeNewKey({ initializeModules: true });
+//     await tb._initializeNewKey({ initializeModules: true });
 
 //     const tb2 = new ThresholdKey({
 //       serviceProvider: defaultSP,
@@ -711,7 +738,7 @@ setupTests()
 //       storageLayer: defaultSL,
 //       modules: { shareTransfer: new ShareTransferModule() },
 //     });
-//     await tb.initializeNewKey({ initializeModules: true });
+//     await tb._initializeNewKey({ initializeModules: true });
 
 //     await tb.modules.shareTransfer.resetShareTransferStore();
 //     const newRequests = await tb.modules.shareTransfer.getShareTransferStore();
@@ -727,7 +754,7 @@ setupTests()
 //       serviceProvider: defaultSP,
 //       storageLayer: defaultSL,
 //     });
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
+//     const resp1 = await tb._initializeNewKey({ initializeModules: true });
 //     const exportedSeedShare = await tb.outputShare(resp1.deviceShare.share.shareIndex, "mnemonic");
 
 //     const tb2 = new ThresholdKey({
@@ -751,7 +778,7 @@ setupTests()
 //       storageLayer: defaultSL,
 //       modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]) },
 //     });
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
+//     const resp1 = await tb._initializeNewKey({ initializeModules: true });
 //     await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
 
 //     const metamaskSeedPhraseFormat2 = new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68");
@@ -776,7 +803,7 @@ setupTests()
 //       storageLayer: defaultSL,
 //       modules: { seedPhrase: new SeedPhraseModule([new MetamaskSeedPhraseFormat("https://mainnet.infura.io/v3/bca735fdbba0408bb09471e86463ae68")]) },
 //     });
-//     await tb.initializeNewKey({ initializeModules: true });
+//     await tb._initializeNewKey({ initializeModules: true });
 //     await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
 //     const actualPrivateKeys = [new BN("70dc3117300011918e26b02176945cc15c3d548cf49fd8418d97f93af699e46", "hex")];
 //     const derivedKeys = await tb.modules.seedPhrase.getAccounts();
@@ -790,7 +817,7 @@ setupTests()
 //       storageLayer: defaultSL,
 //       modules: { privateKeyModule: new PrivateKeyModule([privateKeyFormat]) },
 //     });
-//     await tb.initializeNewKey({ initializeModules: true });
+//     await tb._initializeNewKey({ initializeModules: true });
 
 //     const actualPrivateKeys = [
 //       new BN("4bd0041b7654a9b16a7268a5de7982f2422b15635c4fd170c140dc4897624390", "hex"),
@@ -815,7 +842,7 @@ setupTests()
 //       storageLayer: defaultSL,
 //       modules: { seedPhrase: new SeedPhraseModule([metamaskSeedPhraseFormat]), privateKeyModule: new PrivateKeyModule([privateKeyFormat]) },
 //     });
-//     const resp1 = await tb.initializeNewKey({ initializeModules: true });
+//     const resp1 = await tb._initializeNewKey({ initializeModules: true });
 
 //     await tb.modules.seedPhrase.setSeedPhrase("seed sock milk update focus rotate barely fade car face mechanic mercy", "HD Key Tree");
 
